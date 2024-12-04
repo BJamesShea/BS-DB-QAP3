@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const PORT = 3000;
 
+// I don't know what I'm doing I hope this is right please send help
+
 const { Pool } = require("pg");
 
 const pool = new Pool({
@@ -21,47 +23,55 @@ let tasks = [
   { id: 2, description: "Read a book", status: "complete" },
 ];
 
-// GET /tasks - Get all tasks
-app.get("/tasks", (req, res) => {
-  res.json(tasks);
+app.get("/tasks", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM tasks");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
 });
 
 // POST /tasks - Add a new task
-app.post("/tasks", (request, response) => {
-  const { id, description, status } = request.body;
-  if (!id || !description || !status) {
-    return response
-      .status(400)
-      .json({ error: "All fields (id, description, status) are required" });
+app.post("/tasks", async (req, res) => {
+  try {
+    const { title } = req.body;
+    const result = await pool.query(
+      "INSERT INTO tasks (title) VALUES ($1) RETURNING *",
+      [title]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
   }
-
-  tasks.push({ id, description, status });
-  response.status(201).json({ message: "Task added successfully" });
 });
 
-// PUT /tasks/:id - Update a task's status
-app.put("/tasks/:id", (request, response) => {
-  const taskId = parseInt(request.params.id, 10);
-  const { status } = request.body;
-  const task = tasks.find((t) => t.id === taskId);
-
-  if (!task) {
-    return response.status(404).json({ error: "Task not found" });
+app.put("/tasks/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const result = await pool.query(
+      "UPDATE tasks SET status = $1 WHERE id = $2 RETURNING *",
+      [status, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
   }
-  task.status = status;
-  response.json({ message: "Task updated successfully" });
 });
 
-// DELETE /tasks/:id - Delete a task
-app.delete("/tasks/:id", (request, response) => {
-  const taskId = parseInt(request.params.id, 10);
-  const initialLength = tasks.length;
-  tasks = tasks.filter((t) => t.id !== taskId);
-
-  if (tasks.length === initialLength) {
-    return response.status(404).json({ error: "Task not found" });
+app.delete("/tasks/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query("DELETE FROM tasks WHERE id = $1", [id]);
+    res.json({ message: "Task deleted" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
   }
-  response.json({ message: "Task deleted successfully" });
 });
 
 app.listen(PORT, () => {
